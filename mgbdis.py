@@ -3,7 +3,7 @@
 """Disassemble a Game Boy ROM into RGBDS compatible assembly code"""
 
 __author__ = 'Matt Currie and contributors'
-__credits__ = ['mattcurrie', 'kemenaran', 'bnzis', 'ISSOtm']
+__credits__ = ['mattcurrie', 'kemenaran', 'bnzis', 'ISSOtm', 'lagdotcom']
 __version__ = '2.0'
 __copyright__ = 'Copyright 2018 by Matt Currie'
 __license__ = 'MIT'
@@ -12,6 +12,7 @@ import argparse
 import glob
 import hashlib
 import os
+from typing import List
 import png
 from shutil import copyfile
 
@@ -143,6 +144,7 @@ ldh_a8_formatters = {
 def warn(*args, **kwargs):
     print("WARNING: ", *args, **kwargs)
 
+
 def abort(message):
     print("FATAL: ", message)
     os._exit(1)
@@ -152,20 +154,22 @@ def hex_word(value):
     if style['uppercase_hex']:
         return f'${value:04X}'
     else:
-        return f'${value:04x}'        
+        return f'${value:04x}'
 
 
 def hex_byte(value):
     if style['uppercase_hex']:
         return f'${value:02X}'
     else:
-        return f'${value:02x}'   
+        return f'${value:02x}'
+
 
 def format_hex(hex_string):
     if style['uppercase_hex']:
         return hex_string.upper()
     else:
         return hex_string.lower()
+
 
 def bytes_to_string(data):
     return ' '.join(hex_byte(byte) for byte in data)
@@ -183,6 +187,7 @@ def to_signed(value):
         return (256 - value) * -1
     return value
 
+
 def apply_style_to_instructions(style, instructions):
     # set undefined opcodes to use db/DB
     for opcode, instruction in instructions.items():
@@ -197,9 +202,33 @@ def apply_style_to_instructions(style, instructions):
     return instructions
 
 
+class TBL:
+
+    def __init__(self, path):
+        self.entries = []
+        for line in open(path, 'r', encoding='utf-8'):
+            l = line.strip('\r\n')
+            if line:
+                i = l.index('=')
+                valueHex = l[:i]
+                char = l[i+1:]
+                self.entries.append({"value": int(valueHex, 16), "char": char})
+
+    def has(self, value):
+        for entry in self.entries:
+            if entry['value'] == value:
+                return True
+        return False
+
+    def get(self, value):
+        for entry in self.entries:
+            if entry['value'] == value:
+                return entry['char']
+
+
 class Bank:
 
-    def __init__(self, number, symbols, style, bank0, size):
+    def __init__(self, number: int, symbols, style, bank0, size: int, tbl: TBL | None):
         self.style = style
         self.bank_number = number
         self.blocks = {}
@@ -207,6 +236,7 @@ class Bank:
         self.symbols = symbols
         self.size = size
         self.bank0 = bank0
+        self.tbl = tbl
 
         if number == 0:
             self.memory_base_address = 0
@@ -234,11 +264,9 @@ class Bank:
             'image': self.process_image_in_range
         })
 
-
     def add_target_address(self, instruction_name, address):
         if address not in self.target_addresses[instruction_name]:
             self.target_addresses[instruction_name].add(address)
-
 
     def resolve_blocks(self):
         blocks = self.symbols.get_blocks(self.bank_number, self.size)
@@ -320,7 +348,6 @@ class Bank:
 
         return None
 
-
     def get_labels_for_non_code_address(self, address):
         labels = []
 
@@ -333,7 +360,6 @@ class Bank:
                 labels.append(label + '::')
 
         return labels
-
 
     def get_labels_for_address(self, address):
         labels = []
@@ -350,22 +376,20 @@ class Bank:
             # otherwise, if the address was marked as a target address, generate a label
             for instruction_name in ['call', 'jp', 'jr']:
                 if address in self.target_addresses[instruction_name]:
-                    labels.append(self.format_label(instruction_name, address) + ':')
+                    labels.append(self.format_label(
+                        instruction_name, address) + ':')
 
         return labels
-
 
     def format_label(self, instruction_name, address):
         formatted_bank = format_hex(f'{self.bank_number:03x}')
         formatted_address = format_hex(f'{address:04x}')
-        return f'{self.instruction_label_prefixes[instruction_name]}_{formatted_bank}_{formatted_address}'                
-
+        return f'{self.instruction_label_prefixes[instruction_name]}_{formatted_bank}_{formatted_address}'
 
     def format_image_label(self, address):
         return 'image_{0:03x}_{1:04x}'.format(self.bank_number, address)
 
-
-    def format_instruction(self, instruction_name, operands, address = None, source_bytes = None):
+    def format_instruction(self, instruction_name, operands, address=None, source_bytes=None):
         instruction = f"{self.style['indentation']}{instruction_name:<{self.style['operand_padding']}} {', '.join(operands)}"
 
         if self.style['print_hex'] and address is not None and source_bytes is not None:
@@ -373,26 +397,21 @@ class Bank:
         else:
             return instruction.rstrip()
 
-
     def format_data(self, data):
         return self.format_instruction(self.style['db'], data)
 
-
     def append_output(self, text):
         self.output.append(text)
-
 
     def append_labels_to_output(self, labels):
         self.append_empty_line_if_none_already()
         self.append_output('\n'.join(labels))
 
-
     def append_empty_line_if_none_already(self):
         if len(self.output) > 0 and self.output[len(self.output) - 1] != '':
             self.append_output('')
 
-
-    def disassemble(self, rom, first_pass = False):
+    def disassemble(self, rom, first_pass=False):
         self.first_pass = first_pass
 
         if first_pass:
@@ -401,9 +420,11 @@ class Bank:
         self.output = []
 
         if self.bank_number == 0:
-            self.append_output('SECTION "ROM Bank ${0:03x}", ROM0[$0]'.format(self.bank_number))
+            self.append_output(
+                'SECTION "ROM Bank ${0:03x}", ROM0[$0]'.format(self.bank_number))
         else:
-            self.append_output('SECTION "ROM Bank ${0:03x}", ROMX[$4000], BANK[${0:x}]'.format(self.bank_number))
+            self.append_output(
+                'SECTION "ROM Bank ${0:03x}", ROMX[$4000], BANK[${0:x}]'.format(self.bank_number))
         self.append_output('')
 
         block_start_addresses = sorted(self.blocks.keys())
@@ -412,20 +433,20 @@ class Bank:
             start_address = block_start_addresses[index]
             block = self.blocks[start_address]
             end_address = start_address + block['length']
-            self.disassemble_block_range[block['type']](rom, self.rom_base_address + start_address, self.rom_base_address + end_address, block['arguments'])
+            self.disassemble_block_range[block['type']](
+                rom, self.rom_base_address + start_address, self.rom_base_address + end_address, block['arguments'])
             self.append_empty_line_if_none_already()
 
         return '\n'.join(self.output)
 
-
-    def process_code_in_range(self, rom, start_address, end_address, arguments = None):
+    def process_code_in_range(self, rom, start_address, end_address, arguments=None):
         if not self.first_pass and debug:
-            print('Disassembling code in range: {} - {}'.format(hex_word(start_address), hex_word(end_address)))
+            print('Disassembling code in range: {} - {}'.format(
+                hex_word(start_address), hex_word(end_address)))
 
         self.pc = start_address
         while self.pc < end_address:
             instruction = self.disassemble_at_pc(rom, end_address)
-
 
     def disassemble_at_pc(self, rom, end_address):
         pc = self.pc
@@ -437,7 +458,8 @@ class Bank:
         operand_values = []
 
         if opcode not in instructions:
-            abort('Unhandled opcode: {} at {}'.format(hex_byte(opcode), hex_word(pc)))
+            abort('Unhandled opcode: {} at {}'.format(
+                hex_byte(opcode), hex_word(pc)))
 
         if opcode == 0xCB:
             cb_opcode = rom.data[pc + 1]
@@ -458,7 +480,6 @@ class Bank:
                 # otherwise handle it as a data byte
                 instruction_name = self.style['db']
                 operands = [hex_byte(opcode)]
-
 
         # figure out the operand values for each operand
         for operand in operands:
@@ -488,10 +509,12 @@ class Bank:
                     instruction_name = 'ldh'
                     operand_values.append('[{}]'.format(label))
                 elif full_value in hardware_labels:
-                    operand_values.append('[{}]'.format(hardware_labels[full_value]))
+                    operand_values.append('[{}]'.format(
+                        hardware_labels[full_value]))
                 else:
                     # use one of the ldh_a8_formatters formatters
-                    operand_values.append(ldh_a8_formatters[self.style['ldh_a8']](value))
+                    operand_values.append(
+                        ldh_a8_formatters[self.style['ldh_a8']](value))
 
             elif operand == 'd8':
                 length += 1
@@ -532,8 +555,8 @@ class Bank:
                 value = rom_address_to_mem_address(rom_address)
 
                 # is the jump target is in this bank?
-                if (rom_address >= self.rom_base_address + self.memory_base_address and 
-                    rom_address < self.rom_base_address + self.memory_base_address + self.size):
+                if (rom_address >= self.rom_base_address + self.memory_base_address and
+                        rom_address < self.rom_base_address + self.memory_base_address + self.size):
                     # yep!
                     pass
                 else:
@@ -543,7 +566,8 @@ class Bank:
                 if rom_address < self.rom_base_address + self.memory_base_address:
                     # output as data, otherwise RGBDS will complain
                     instruction_name = self.style['db']
-                    operand_values = [hex_byte(opcode), hex_byte(rom.data[pc + 1])]
+                    operand_values = [
+                        hex_byte(opcode), hex_byte(rom.data[pc + 1])]
 
                     # exit the loop to avoid processing the operands any further
                     break
@@ -566,7 +590,6 @@ class Bank:
             else:
                 operand_values.append(hex_byte(operand))
 
-
             if instruction_name in ['jr', 'jp', 'call'] and value is not None and value < 0x8000:
                 mem_address = rom_address_to_mem_address(value)
 
@@ -577,15 +600,16 @@ class Bank:
                         self.add_target_address(instruction_name, mem_address)
                     elif mem_address < 0x4000 and self.bank0:
                         # label in fixed bank
-                        self.bank0.add_target_address(instruction_name, mem_address)
+                        self.bank0.add_target_address(
+                            instruction_name, mem_address)
                 else:
                     # fetch the label name
-                    label = self.get_label_for_jump_target(instruction_name, mem_address)
+                    label = self.get_label_for_jump_target(
+                        instruction_name, mem_address)
                     if label is not None:
                         # remove the address from operand values and use the label instead
                         operand_values.pop()
                         operand_values.append(label)
-
 
         # check the instruction is not spanning 2 banks
         if pc + length - 1 >= end_address:
@@ -607,7 +631,8 @@ class Bank:
                 self.append_output(comment)
 
             instruction_bytes = rom.data[pc:pc + length]
-            self.append_output(self.format_instruction(instruction_name, operand_values, pc_mem_address, instruction_bytes))
+            self.append_output(self.format_instruction(
+                instruction_name, operand_values, pc_mem_address, instruction_bytes))
 
             # add some empty lines after returns and jumps to break up the code blocks
             if instruction_name in ['ret', 'reti', 'jr', 'jp']:
@@ -623,10 +648,10 @@ class Bank:
                     self.append_output('')
                     self.append_output('')
 
-
-    def process_data_in_range(self, rom, start_address, end_address, arguments = None):
+    def process_data_in_range(self, rom, start_address, end_address, arguments=None):
         if not self.first_pass and debug:
-            print('Outputting data in range: {} - {}'.format(hex_word(start_address), hex_word(end_address)))
+            print('Outputting data in range: {} - {}'.format(
+                hex_word(start_address), hex_word(end_address)))
 
         values = []
 
@@ -649,10 +674,10 @@ class Bank:
                 self.append_output(self.format_data(values))
                 values = []
 
-
-    def process_text_in_range(self, rom, start_address, end_address, arguments = None):
+    def process_text_in_range(self, rom, start_address, end_address, arguments=None):
         if not self.first_pass and debug:
-            print('Outputting text in range: {} - {}'.format(hex_word(start_address), hex_word(end_address)))
+            print('Outputting text in range: {} - {}'.format(
+                hex_word(start_address), hex_word(end_address)))
 
         values = []
         text = ''
@@ -674,7 +699,15 @@ class Bank:
                 self.append_labels_to_output(labels)
 
             byte = rom.data[address]
-            if byte >= 0x20 and byte < 0x7F:
+            if self.tbl:
+                if self.tbl.has(byte):
+                    text += self.tbl.get(byte)
+                else:
+                    if len(text):
+                        values.append('"{}"'.format(text))
+                        text = ''
+                    values.append(hex_byte(byte))
+            elif byte >= 0x20 and byte < 0x7F:
                 text += chr(byte)
             else:
                 if len(text):
@@ -688,9 +721,10 @@ class Bank:
         if len(values):
             self.append_output(self.format_data(values))
 
-    def process_image_in_range(self, rom, start_address, end_address, arguments = None):
+    def process_image_in_range(self, rom, start_address, end_address, arguments=None):
         if not self.first_pass and debug:
-            print('Outputting image in range: {} - {}'.format(hex_word(start_address), hex_word(end_address)))
+            print('Outputting image in range: {} - {}'.format(
+                hex_word(start_address), hex_word(end_address)))
 
         if self.first_pass:
             return
@@ -703,10 +737,10 @@ class Bank:
         else:
             basename = self.format_image_label(mem_address)
 
-        full_filename = rom.write_image(basename, arguments, rom.data[start_address:end_address])
-        self.append_output(self.format_instruction('INCBIN', ['\"' + full_filename + '\"']))
-
-
+        full_filename = rom.write_image(
+            basename, arguments, rom.data[start_address:end_address])
+        self.append_output(self.format_instruction(
+            'INCBIN', ['\"' + full_filename.replace('\\', '\\\\') + '\"']))
 
 
 class Symbols:
@@ -716,7 +750,7 @@ class Symbols:
         self.bank_size = bank_size
 
     def load_sym_file(self, symbols_path):
-        f = open(symbols_path, 'r')
+        f = open(symbols_path, 'r', encoding='utf-8')
 
         for line in f:
             # ignore comments and empty lines
@@ -725,8 +759,9 @@ class Symbols:
 
         f.close()
 
-
     def add_symbol_definition(self, symbol_def):
+        if symbol_def[0] == '#':
+            return
         try:
             location, label = symbol_def.split()
             bank, address = location.split(':')
@@ -763,13 +798,14 @@ class Symbols:
                 else:
                     arguments = None
 
-                self.add_block(bank, address, block_type, data_length, arguments)
+                self.add_block(bank, address, block_type,
+                               data_length, arguments)
 
             else:
                 # add the label
                 self.add_label(bank, address, label)
 
-    def add_block(self, bank, address, block_type, length, arguments = None):
+    def add_block(self, bank, address, block_type, length, arguments=None):
         memory_base_address = 0x0000 if bank == 0 else 0x4000
 
         if address >= memory_base_address:
@@ -812,15 +848,20 @@ class Symbols:
 
         return self.blocks[bank]
 
-class ROM:
 
-    def __init__(self, rom_path, style, tiny):
+class ROM:
+    image_output_directory: str
+    image_dependencies: List[str]
+
+    def __init__(self, rom_path: str, style, tiny: bool, tbl_file: str | None):
         self.style = style
         self.script_dir = os.path.dirname(os.path.realpath(__file__))
         self.rom_path = rom_path
         self.load(tiny)
         self.split_instructions()
         self.tiny = tiny
+        if tbl_file:
+            self.tbl = TBL(tbl_file)
 
         self.image_output_directory = 'gfx'
         self.image_dependencies = []
@@ -835,12 +876,15 @@ class ROM:
 
         size = self.rom_size
         if tiny:
-            self.banks = [Bank(0, self.symbols, style, None, min(size, 0x8000))]
+            self.banks = [Bank(0, self.symbols, style,
+                               None, min(size, 0x8000), self.tbl)]
         else:
-            self.banks = [Bank(0, self.symbols, style, None, min(size, 0x4000))]
+            self.banks = [Bank(0, self.symbols, style,
+                               None, min(size, 0x4000), self.tbl)]
             for bank in range(1, self.num_banks):
                 size -= 0x4000
-                self.banks.append(Bank(bank, self.symbols, style, self.banks[0], min(size, 0x4000)))
+                self.banks.append(
+                    Bank(bank, self.symbols, style, self.banks[0], min(size, 0x4000), self.tbl))
 
     def load(self, tiny):
         if os.path.isfile(self.rom_path):
@@ -851,15 +895,16 @@ class ROM:
                 abort("ROM is too small, doesn't even contain a header!")
             self.num_banks = self.rom_size // 0x4000
             if self.rom_size % 0x4000 != 0:
-                warn(f"ROM size (${self.rom_size:04x}) is not a multiple of $4000!")
-                self.num_banks += 1 # Count that incomplete bank
+                warn(
+                    f"ROM size (${self.rom_size:04x}) is not a multiple of $4000!")
+                self.num_banks += 1  # Count that incomplete bank
             if tiny:
                 if self.num_banks > 2:
-                    abort(f"ROM is ${self.rom_size:04x} bytes large, tiny ROMs can only be $8000 at most")
+                    abort(
+                        f"ROM is ${self.rom_size:04x} bytes large, tiny ROMs can only be $8000 at most")
                 self.num_banks = 1
         else:
             abort('"{}" not found'.format(self.rom_path))
-
 
     def split_instructions(self):
         # split the instructions and operands
@@ -872,7 +917,8 @@ class ROM:
             instruction_parts = instructions[opcode].split()
             self.instruction_names[opcode] = instruction_parts[0]
             if len(instruction_parts) > 1:
-                self.instruction_operands[opcode] = instruction_parts[1].split(',')
+                self.instruction_operands[opcode] = instruction_parts[1].split(
+                    ',')
             else:
                 self.instruction_operands[opcode] = []
 
@@ -880,10 +926,10 @@ class ROM:
             instruction_parts = cb_instructions[cb_opcode].split()
             self.cb_instruction_name[cb_opcode] = instruction_parts[0]
             if len(instruction_parts) > 1:
-                self.cb_instruction_operands[cb_opcode] = instruction_parts[1].split(',')
+                self.cb_instruction_operands[cb_opcode] = instruction_parts[1].split(
+                    ',')
             else:
                 self.cb_instruction_operands[cb_opcode] = []
-
 
     def load_symbols(self):
         symbols = Symbols(0x8000 if self.tiny else 0x4000)
@@ -902,10 +948,8 @@ class ROM:
 
         return symbols
 
-
     def supports_gbc(self):
         return ((self.data[0x143] & 0x80) == 0x80)
-
 
     def disassemble(self, output_dir):
 
@@ -913,13 +957,14 @@ class ROM:
 
         if os.path.exists(self.output_directory):
             if not args.overwrite:
-                abort('Output directory "{}" already exists!'.format(self.output_directory))
+                abort('Output directory "{}" already exists!'.format(
+                    self.output_directory))
 
             if not os.path.isdir(self.output_directory):
-                abort('Output path "{}" already exists and is not a directory!'.format(self.output_directory))
+                abort('Output path "{}" already exists and is not a directory!'.format(
+                    self.output_directory))
         else:
             os.makedirs(self.output_directory)
-
 
         print('Generating labels...')
         self.generate_labels()
@@ -937,52 +982,61 @@ class ROM:
         self.write_game_asm()
         self.write_makefile()
 
-        print('\nDisassembly generated in "{}"'.format(self.output_directory))
+        if self.tbl:
+            self.write_charmap()
 
+        print('\nDisassembly generated in "{}"'.format(self.output_directory))
 
     def generate_labels(self):
         for bank in range(0, self.num_banks):
             self.banks[bank].disassemble(rom, True)
-
 
     def write_bank_asm(self, bank):
         if not debug:
             # progress indicator
             print('.', end='', flush=True)
 
-        path = os.path.join(self.output_directory, 'bank_{0:03x}.asm'.format(bank))
-        f = open(path, 'w')
+        path = os.path.join(self.output_directory,
+                            'bank_{0:03x}.asm'.format(bank))
+        f = open(path, 'w', encoding='utf-8')
 
         self.write_header(f)
         f.write(self.banks[bank].disassemble(rom))
 
         f.close()
 
-
     def write_header(self, f):
-        f.write('; Disassembly of "{}"\n'.format(os.path.basename(self.rom_path)))
+        f.write('; Disassembly of "{}"\n'.format(
+            os.path.basename(self.rom_path)))
         f.write('; This file was created with:\n')
         f.write('; {}\n'.format(app_name))
         f.write('; https://github.com/mattcurrie/mgbdis\n\n')
-
 
     def copy_hardware_inc(self):
         src = os.path.join(self.script_dir, 'hardware.inc')
         dest = os.path.join(self.output_directory, 'hardware.inc')
         copyfile(src, dest)
 
-
     def write_game_asm(self):
         path = os.path.join(self.output_directory, 'game.asm')
-        f = open(path, 'w')
+        f = open(path, 'w', encoding='utf-8')
 
         self.write_header(f)
 
-        f.write('INCLUDE "hardware.inc"')
+        f.write('INCLUDE "includes.inc"\n')
         for bank in range(0, self.num_banks):
-            f.write('\nINCLUDE "bank_{0:03x}.asm"'.format(bank))
+            f.write('INCLUDE "bank_{0:03x}.asm"\n'.format(bank))
         f.close()
 
+    def write_charmap(self):
+        dst = os.path.join(self.output_directory, 'charmap.inc')
+
+        f = open(dst, 'w', encoding='utf-8')
+        for entry in self.tbl.entries:
+            ch = entry['char']
+            if ch in ['"', '{', '}']:
+                ch = '\\' + ch
+            f.write('CHARMAP "{}", {}\n'.format(ch, hex_byte(entry['value'])))
 
     def write_image(self, basename, arguments, data):
 
@@ -1005,16 +1059,20 @@ class ROM:
                     elif argument == '1bpp':
                         bpp = 1
 
-        image_output_path = os.path.join(self.output_directory, self.image_output_directory)
+        image_output_path = os.path.join(
+            self.output_directory, self.image_output_directory)
         if os.path.exists(image_output_path):
             if not os.path.isdir(image_output_path):
-                abort('File already exists named "{}". Cannot store images!'.format(image_output_path))
+                abort('File already exists named "{}". Cannot store images!'.format(
+                    image_output_path))
         else:
             os.makedirs(image_output_path)
 
-        relative_path = os.path.join(self.image_output_directory, basename + '.' + "{}bpp".format(bpp))
+        relative_path = os.path.join(
+            self.image_output_directory, basename + '.' + "{}bpp".format(bpp))
         self.image_dependencies.append(relative_path)
-        path = os.path.join(self.output_directory, self.image_output_directory, basename + '.png')
+        path = os.path.join(self.output_directory,
+                            self.image_output_directory, basename + '.png')
 
         bytes_per_tile_row = bpp  # 8 pixels at 1 or 2 bits per pixel
         bytes_per_tile = bytes_per_tile_row * 8  # 8 rows per tile
@@ -1030,7 +1088,8 @@ class ROM:
 
         tile_rows = (num_tiles / tiles_per_row)
         if not tile_rows.is_integer():
-            abort('Invalid length ${:0x} or width {} for image block: {}'.format(len(data), width, basename))
+            abort('Invalid length ${:0x} or width {} for image block: {}'.format(
+                len(data), width, basename))
 
         height = int(tile_rows) * 8
 
@@ -1038,12 +1097,12 @@ class ROM:
         rgb_palette = self.convert_palette_to_rgb(palette, bpp)
 
         f = open(path, 'wb')
-        w = png.Writer(width, height, alpha=False, bitdepth=2, palette=rgb_palette)
+        w = png.Writer(width, height, alpha=False,
+                       bitdepth=2, palette=rgb_palette)
         w.write(f, pixel_data)
         f.close()
 
         return relative_path
-
 
     def convert_to_pixel_data(self, data, width, height, bpp):
         result = []
@@ -1057,7 +1116,8 @@ class ROM:
                     shift = (7 - (x & 7))
                     mask = (1 << shift)
                     if bpp == 2:
-                        color = ((data[offset] & mask) >> shift) + (((data[offset + 1] & mask) >> shift) << 1)
+                        color = ((data[offset] & mask) >> shift) + \
+                            (((data[offset + 1] & mask) >> shift) << 1)
                     else:
                         color = ((data[offset] & mask) >> shift)
                 else:
@@ -1067,7 +1127,6 @@ class ROM:
             result.append(row)
 
         return result
-
 
     def coordinate_to_tile_offset(self, x, y, width, bpp):
         bytes_per_tile_row = bpp  # 8 pixels at 1 or 2 bits per pixel
@@ -1080,9 +1139,8 @@ class ROM:
 
         return (tile_y * tiles_per_row * bytes_per_tile) + (tile_x * bytes_per_tile) + (row_of_tile * bytes_per_tile_row)
 
-
     def convert_palette_to_rgb(self, palette, bpp):
-        col0 = 255 - (((palette & 0x03)     ) << 6)
+        col0 = 255 - (((palette & 0x03)) << 6)
         col1 = 255 - (((palette & 0x0C) >> 2) << 6)
         col2 = 255 - (((palette & 0x30) >> 4) << 6)
         col3 = 255 - (((palette & 0xC0) >> 6) << 6)
@@ -1099,17 +1157,17 @@ class ROM:
                 (col3, col3, col3)
             ]
 
-
     def write_makefile(self):
         rom_extension = 'gb'
         if self.supports_gbc():
             rom_extension = 'gbc'
 
         path = os.path.join(self.output_directory, 'Makefile')
-        f = open(path, 'w')
+        f = open(path, 'w', encoding='utf-8')
 
         if len(self.image_dependencies):
-            f.write('IMAGE_DEPS = {}\n\n'.format(' '.join(self.image_dependencies)))
+            f.write('IMAGE_DEPS = {}\n\n'.format(
+                ' '.join(self.image_dependencies)))
 
         f.write('all: game.{}\n\n'.format(rom_extension))
 
@@ -1146,24 +1204,40 @@ class ROM:
         f.close()
 
 
-
-app_name = 'mgbdis v{version} - Game Boy ROM disassembler by {author}.'.format(version=__version__, author=__author__)
+app_name = 'mgbdis v{version} - Game Boy ROM disassembler by {author}.'.format(
+    version=__version__, author=__author__)
 parser = argparse.ArgumentParser(description=app_name)
-parser.add_argument('rom_path', help='Game Boy (Color) ROM file to disassemble')
-parser.add_argument('--output-dir', default='disassembly', help='Directory to write the files into. Defaults to "disassembly"', action='store')
-parser.add_argument('--uppercase-hex', help='Print hexadecimal numbers using uppercase characters', action='store_true')
-parser.add_argument('--print-hex', help='Print the hexadecimal representation next to the opcodes', action='store_true')
-parser.add_argument('--align-operands', help='Format the instruction operands to align them vertically', action='store_true')
-parser.add_argument('--indent-spaces', help='Number of spaces to use to indent instructions', type=int, default=4)
-parser.add_argument('--indent-tabs', help='Use tabs for indenting instructions', action='store_true')
-parser.add_argument('--uppercase-db', help='Use uppercase for DB data declarations', action='store_true')
-parser.add_argument('--hli', help='Mnemonic to use for \'ld [hl+], a\' type instructions.', type=str, default='hl+', choices=['hl+', 'hli', 'ldi'])
-parser.add_argument('--ldh_a8', help='Mnemonic to use for \'ldh [a8], a\' type instructions.', type=str, default='ldh_a8', choices=['ldh_a8', 'ldh_ffa8', 'ld_ff00_a8'])
-parser.add_argument('--ld_c', help='Mnemonic to use for \'ld [c], a\' type instructions.', type=str, default='ld_c', choices=['ld_c', 'ldh_c', 'ld_ff00_c'])
-parser.add_argument('--disable-halt-nops', help='Disable RGBDS\'s automatic insertion of \'nop\' instructions after \'halt\' instructions.', action='store_true')
-parser.add_argument('--overwrite', help='Allow generating a disassembly into an already existing directory', action='store_true')
-parser.add_argument('--debug', help='Display debug output', action='store_true')
-parser.add_argument('--tiny', help='Emulate RGBLINK `-t` option (non-banked / "32k" ROMs)', action='store_true')
+parser.add_argument(
+    'rom_path', help='Game Boy (Color) ROM file to disassemble')
+parser.add_argument('--output-dir', default='disassembly',
+                    help='Directory to write the files into. Defaults to "disassembly"', action='store')
+parser.add_argument(
+    '--uppercase-hex', help='Print hexadecimal numbers using uppercase characters', action='store_true')
+parser.add_argument(
+    '--print-hex', help='Print the hexadecimal representation next to the opcodes', action='store_true')
+parser.add_argument('--align-operands',
+                    help='Format the instruction operands to align them vertically', action='store_true')
+parser.add_argument(
+    '--indent-spaces', help='Number of spaces to use to indent instructions', type=int, default=4)
+parser.add_argument(
+    '--indent-tabs', help='Use tabs for indenting instructions', action='store_true')
+parser.add_argument(
+    '--uppercase-db', help='Use uppercase for DB data declarations', action='store_true')
+parser.add_argument(
+    '--hli', help='Mnemonic to use for \'ld [hl+], a\' type instructions.', type=str, default='hl+', choices=['hl+', 'hli', 'ldi'])
+parser.add_argument('--ldh_a8', help='Mnemonic to use for \'ldh [a8], a\' type instructions.',
+                    type=str, default='ldh_a8', choices=['ldh_a8', 'ldh_ffa8', 'ld_ff00_a8'])
+parser.add_argument('--ld_c', help='Mnemonic to use for \'ld [c], a\' type instructions.',
+                    type=str, default='ld_c', choices=['ld_c', 'ldh_c', 'ld_ff00_c'])
+parser.add_argument('--disable-halt-nops',
+                    help='Disable RGBDS\'s automatic insertion of \'nop\' instructions after \'halt\' instructions.', action='store_true')
+parser.add_argument(
+    '--overwrite', help='Allow generating a disassembly into an already existing directory', action='store_true')
+parser.add_argument('--debug', help='Display debug output',
+                    action='store_true')
+parser.add_argument(
+    '--tiny', help='Emulate RGBLINK `-t` option (non-banked / "32k" ROMs)', action='store_true')
+parser.add_argument('--tbl-file', help='Provide a character map')
 args = parser.parse_args()
 
 debug = args.debug
@@ -1181,5 +1255,5 @@ style = {
 }
 instructions = apply_style_to_instructions(style, instructions)
 
-rom = ROM(args.rom_path, style, args.tiny)
+rom = ROM(args.rom_path, style, args.tiny, args.tbl_file)
 rom.disassemble(args.output_dir)
