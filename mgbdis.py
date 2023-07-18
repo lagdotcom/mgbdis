@@ -260,6 +260,7 @@ class Bank:
         self.disassemble_block_range = dict({
             'code': self.process_code_in_range,
             'data': self.process_data_in_range,
+            'bin': self.process_bin_in_range,
             'text': self.process_text_in_range,
             'image': self.process_image_in_range
         })
@@ -674,6 +675,22 @@ class Bank:
                 self.append_output(self.format_data(values))
                 values = []
 
+    def process_bin_in_range(self, rom, start_address, end_address, arguments=None):
+        if not self.first_pass and debug:
+            print('Outputting bin in range: {} - {}'.format(
+                hex_word(start_address), hex_word(end_address)))
+
+        rom.write_bin(arguments, start_address, end_address)
+
+        mem_address = rom_address_to_mem_address(start_address)
+        labels = self.get_labels_for_non_code_address(mem_address)
+
+        if len(labels):
+            self.append_labels_to_output(labels)
+
+        self.append_output(self.format_instruction(
+            'INCBIN', ['\"' + arguments.replace('\\', '\\\\') + '\"']))
+
     def process_text_in_range(self, rom, start_address, end_address, arguments=None):
         if not self.first_pass and debug:
             print('Outputting text in range: {} - {}'.format(
@@ -789,6 +806,9 @@ class Symbols:
 
                 elif block_type in ['.image']:
                     block_type = 'image'
+
+                elif block_type in ['.bin']:
+                    block_type = 'bin'
 
                 else:
                     return
@@ -1037,6 +1057,10 @@ class ROM:
             if ch in ['"', '{', '}']:
                 ch = '\\' + ch
             f.write('CHARMAP "{}", {}\n'.format(ch, hex_byte(entry['value'])))
+
+    def write_bin(self, filename, start, end):
+        relative_path = os.path.join(self.output_directory, filename)
+        open(relative_path, 'wb').write(self.data[start:end])
 
     def write_image(self, basename, arguments, data):
 
