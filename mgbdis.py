@@ -651,14 +651,23 @@ class Bank:
         if not self.first_pass and debug:
             print('Outputting data in range: {} - {}'.format(hex_word(start_address), hex_word(end_address)))
 
-        values = []
-        step = 1
+        # defaults
+        size = 1
         instruction = 'db'
-        if arguments == 'w':
-            step = 2
-            instruction = 'dw'
+        use_bank = None
 
-        for address in range(start_address, end_address, step):
+        # process arguments
+        if arguments is not None:
+            for argument in arguments.split(','):
+                if argument == 'w':
+                    size = 2
+                    instruction = 'dw'
+                elif argument[0] == 'b':
+                    use_bank = int(argument[1:], 16)
+
+        values = []
+
+        for address in range(start_address, end_address, size):
             mem_address = rom_address_to_mem_address(address)
 
             labels = self.get_labels_for_non_code_address(mem_address)
@@ -670,15 +679,19 @@ class Bank:
 
                 self.append_labels_to_output(labels)
 
-            if step == 2:
+            if size == 2:
                 value = rom.data[address] + (rom.data[address+1] << 8)
-                label = self.get_label(value)
+                if use_bank == None:
+                    label = self.get_label(value)
+                else:
+                    label = self.symbols.get_label(use_bank, value)
+
                 if label: values.append(label)
                 else: values.append(hex_word(value))
             else: values.append(hex_byte(rom.data[address]))
 
             # output max of 16 bytes per line, and ensure any remaining values are output
-            if len(values) == 16 or (address == end_address - step and len(values)):
+            if len(values) == 16 or (address == end_address - size and len(values)):
                 self.append_output(self.format_data(values, instruction))
                 values = []
 
