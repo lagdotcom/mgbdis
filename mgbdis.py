@@ -645,7 +645,7 @@ class Bank:
         if len(labels):
             self.append_labels_to_output(labels)
 
-        self.append_output(self.format_instruction('INCBIN', ['\"%s\"' % fixslashes(arguments)]))
+        self.append_output(self.format_instruction('INCBIN', ['\"%s\"' % fix_slashes(arguments)]))
 
     def process_data_in_range(self, rom, start_address, end_address, arguments = None):
         if not self.first_pass and debug:
@@ -1161,6 +1161,12 @@ class ROM:
 
     def write_bin(self, filename, start, end):
         relative_path = os.path.join(self.output_directory, filename)
+        output_path = os.path.dirname(relative_path)
+        if os.path.exists(output_path):
+            if not os.path.isdir(output_path):
+                abort('File already exists named "{}". Cannot store "{}"!'.format(output_path, filename))
+        else:
+            os.makedirs(output_path)
         open(relative_path, 'wb').write(self.data[start:end])
 
     def convert_to_pixel_data(self, data, width, height, bpp):
