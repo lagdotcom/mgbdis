@@ -385,8 +385,8 @@ class Bank:
             return instruction.rstrip()
 
 
-    def format_data(self, data):
-        return self.format_instruction(self.style['db'], data)
+    def format_data(self, data, instruction = 'db'):
+        return self.format_instruction(self.style[instruction], data)
 
 
     def append_output(self, text):
@@ -652,24 +652,34 @@ class Bank:
             print('Outputting data in range: {} - {}'.format(hex_word(start_address), hex_word(end_address)))
 
         values = []
+        step = 1
+        instruction = 'db'
+        if arguments == 'w':
+            step = 2
+            instruction = 'dw'
 
-        for address in range(start_address, end_address):
+        for address in range(start_address, end_address, step):
             mem_address = rom_address_to_mem_address(address)
 
             labels = self.get_labels_for_non_code_address(mem_address)
             if len(labels):
                 # add any existing values to the output and reset the list
                 if len(values) > 0:
-                    self.append_output(self.format_data(values))
+                    self.append_output(self.format_data(values, instruction))
                     values = []
 
                 self.append_labels_to_output(labels)
 
-            values.append(hex_byte(rom.data[address]))
+            if step == 2:
+                value = rom.data[address] + (rom.data[address+1] << 8)
+                label = self.get_label(value)
+                if label: values.append(label)
+                else: values.append(hex_word(value))
+            else: values.append(hex_byte(rom.data[address]))
 
             # output max of 16 bytes per line, and ensure any remaining values are output
-            if len(values) == 16 or (address == end_address - 1 and len(values)):
-                self.append_output(self.format_data(values))
+            if len(values) == 16 or (address == end_address - step and len(values)):
+                self.append_output(self.format_data(values, instruction))
                 values = []
 
     def get_character_map_index(self, arguments):
@@ -1319,6 +1329,7 @@ style = {
     'indentation': '\t' if args.indent_tabs else ' ' * args.indent_spaces,
     'operand_padding': 4 if args.align_operands else 0,
     'db': 'DB' if args.uppercase_db else 'db',
+    'dw': 'DW' if args.uppercase_db else 'dw',
     'hli': args.hli,
     'ldh_a8': args.ldh_a8,
     'ld_c': args.ld_c,
