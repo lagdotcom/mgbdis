@@ -300,11 +300,21 @@ class Bank:
             return self.bank0.symbols.get_label(0, address)
         return self.symbols.get_label(self.bank_number, address)
 
-    def get_label_for_instruction_operand(self, value):
+    def get_hints_by_address(self, value):
+        hints = self.symbols.get_hints(self.bank_number)
+        if value in hints: return hints[value]
+
+    def get_label_for_instruction_operand(self, address, value):
         # an operand value lower than $100 is more probably an actual value than an address:
         # don't lookup symbols for it
         if value <= 0x100:
             return None
+
+        hints = self.get_hints_by_address(address)
+        if hints:
+            if 'bank' in hints:
+                label = self.symbols.get_label(hints['bank'], value)
+                if label: return label
 
         return self.get_label(value)
 
@@ -482,7 +492,7 @@ class Bank:
             elif operand == '[a16]':
                 length += 2
                 value = rom.data[pc + 1] + rom.data[pc + 2] * 256
-                label = self.get_label_for_instruction_operand(value)
+                label = self.get_label_for_instruction_operand(pc_mem_address, value)
                 if label:
                     operand_values.append('[' + label + ']')
                 else:
@@ -492,7 +502,7 @@ class Bank:
                 length += 1
                 value = rom.data[pc + 1]
                 full_value = 0xff00 + value
-                label = self.get_label_for_instruction_operand(full_value)
+                label = self.get_label_for_instruction_operand(pc_mem_address, full_value)
                 if label is not None:
                     # when referencing a label, we need to explicitely tell rgbds to use the short load opcode
                     instruction_name = 'ldh'
@@ -511,7 +521,7 @@ class Bank:
             elif operand == 'd16':
                 length += 2
                 value = rom.data[pc + 1] + rom.data[pc + 2] * 256
-                label = self.get_label_for_instruction_operand(value)
+                label = self.get_label_for_instruction_operand(pc_mem_address, value)
                 if label is not None:
                     operand_values.append(label)
                 else:
@@ -826,6 +836,7 @@ class Symbols:
     def __init__(self, bank_size):
         self.symbols = {}
         self.blocks = {}
+        self.hints = {}
         self.bank_size = bank_size
 
     def load_sym_file(self, symbols_path):
@@ -870,6 +881,17 @@ class Symbols:
 
                 elif block_type in ['.image']:
                     block_type = 'image'
+
+                elif block_type in ['.hint']:
+                    hints = {}
+
+                    for hint in label_parts[2].split(','):
+                        if hint[0] == 'b':
+                            hint_bank = int(hint[1:], 16)
+                            hints['bank'] = hint_bank
+
+                    self.get_hints(bank)[address] = hints
+                    return
 
                 else:
                     return
@@ -927,6 +949,12 @@ class Symbols:
             self.add_block(bank, memory_base_address, 'code', self.bank_size)
 
         return self.blocks[bank]
+
+    def get_hints(self, bank):
+        if bank not in self.hints:
+            self.hints[bank] = {}
+
+        return self.hints[bank]
 
 class ROM:
 
