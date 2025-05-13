@@ -52,8 +52,9 @@ default_symbols = [
     '00:0104 HeaderLogo',
     '00:0104 .data:30',
     '00:0134 HeaderTitle',
-    '00:0134 .text:10',
-    '00:0144 .data:c',
+    '00:0134 .text:f',
+    '00:0143 .data:d',
+    '00:0143 HeaderCGBCompatibility',
     '00:0144 HeaderNewLicenseeCode',
     '00:0146 HeaderSGBFlag',
     '00:0147 HeaderCartridgeType',
@@ -145,6 +146,84 @@ special_characters = {
     34: '\\"',
     123: '\\{',
     125: '\\}'
+}
+
+
+cgb_compatibility = {
+    0x00: 'CART_COMPATIBLE_DMG',
+    0x80: 'CART_COMPATIBLE_DMG_GBC',
+    0xC0: 'CART_COMPATIBLE_GBC',
+}
+
+sgb_indicator = {
+    0x00: 'CART_INDICATOR_GB',
+    0x03: 'CART_INDICATOR_SGB',
+}
+
+cartridge_type = {
+    0x00: 'CART_ROM',
+    0x01: 'CART_ROM_MBC1',
+    0x02: 'CART_ROM_MBC1_RAM',
+    0x03: 'CART_ROM_MBC1_RAM_BAT',
+    0x05: 'CART_ROM_MBC2',
+    0x06: 'CART_ROM_MBC2_BAT',
+    0x08: 'CART_ROM_RAM',
+    0x09: 'CART_ROM_RAM_BAT',
+    0x0B: 'CART_ROM_MMM01',
+    0x0C: 'CART_ROM_MMM01_RAM',
+    0x0D: 'CART_ROM_MMM01_RAM_BAT',
+    0x0F: 'CART_ROM_MBC3_BAT_RTC',
+    0x10: 'CART_ROM_MBC3_RAM_BAT_RTC',
+    0x11: 'CART_ROM_MBC3',
+    0x12: 'CART_ROM_MBC3_RAM',
+    0x13: 'CART_ROM_MBC3_RAM_BAT',
+    0x19: 'CART_ROM_MBC5',
+    0x1A: 'CART_ROM_MBC5_BAT',
+    0x1B: 'CART_ROM_MBC5_RAM_BAT',
+    0x1C: 'CART_ROM_MBC5_RUMBLE',
+    0x1D: 'CART_ROM_MBC5_RAM_RUMBLE',
+    0x1E: 'CART_ROM_MBC5_RAM_BAT_RUMBLE',
+    0x22: 'CART_ROM_MBC7_RAM_BAT_GYRO',
+    0xFC: 'CART_ROM_POCKET_CAMERA',
+    0xFD: 'CART_ROM_BANDAI_TAMA5',
+    0xFE: 'CART_ROM_HUDSON_HUC3',
+    0xFF: 'CART_ROM_HUDSON_HUC1',
+}
+
+rom_size = {
+    0x00: 'CART_ROM_32KB',
+    0x01: 'CART_ROM_64KB',
+    0x02: 'CART_ROM_128KB',
+    0x03: 'CART_ROM_256KB',
+    0x04: 'CART_ROM_512KB',
+    0x05: 'CART_ROM_1024KB',
+    0x06: 'CART_ROM_2048KB',
+    0x07: 'CART_ROM_4096KB',
+    0x08: 'CART_ROM_8192KB',
+    0x52: 'CART_ROM_1152KB',
+    0x53: 'CART_ROM_1280KB',
+    0x54: 'CART_ROM_1536KB',
+}
+
+sram_size = {
+    0: 'CART_SRAM_NONE',
+    2: 'CART_SRAM_8KB',
+    3: 'CART_SRAM_32KB',
+    4: 'CART_SRAM_128KB',
+}
+
+destination_code = {
+    0: 'CART_DEST_JAPANESE',
+    1: 'CART_DEST_NON_JAPANESE',
+}
+
+header_bytes = {
+    0x143: cgb_compatibility,
+    0x146: sgb_indicator,
+    0x147: cartridge_type,
+    0x148: rom_size,
+    0x149: sram_size,
+    0x14a: destination_code,
 }
 
 
@@ -696,7 +775,12 @@ class Bank:
                 else:
                     values.append(hex_word(value))
             else:
-                values.append(hex_byte(rom.data[address]))
+                value = rom.data[address]
+                alias = hex_byte(value)
+                if address in header_bytes:
+                    if value in header_bytes[address]:
+                        alias = header_bytes[address][value]
+                values.append(alias)
 
             # output max of 16 bytes per line, and ensure any remaining values are output
             if len(values) == 16 or (address == end_address - size and len(values)):

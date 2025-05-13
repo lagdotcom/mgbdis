@@ -299,25 +299,28 @@ HeaderLogo::
     db $bb, $bb, $67, $63, $6e, $0e, $ec, $cc, $dd, $dc, $99, $9f, $bb, $b9, $33, $3e
 
 HeaderTitle::
-    db "mgbdis test", $00, $00, $00, $00, $00
+    db "mgbdis test", $00, $00, $00, $00
+
+HeaderCGBCompatibility::
+    db CART_COMPATIBLE_DMG
 
 HeaderNewLicenseeCode::
     db $00, $00
 
 HeaderSGBFlag::
-    db $00
+    db CART_INDICATOR_GB
 
 HeaderCartridgeType::
-    db $01
+    db CART_ROM_MBC1
 
 HeaderROMSize::
-    db $01
+    db CART_ROM_64KB
 
 HeaderRAMSize::
-    db $00
+    db CART_SRAM_NONE
 
 HeaderDestinationCode::
-    db $00
+    db CART_DEST_JAPANESE
 
 HeaderOldLicenseeCode::
     db $00
