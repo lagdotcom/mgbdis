@@ -1117,7 +1117,8 @@ class ROM:
 
         self.write_header(f)
 
-        f.write('INCLUDE "hardware.inc"')
+        for include in self.style['game_asm_includes']:
+            f.write('INCLUDE "%s"\n' % include)
         character_maps = self.get_character_map_paths()
         if (len(character_maps) > 0):
             for map in character_maps:
@@ -1355,6 +1356,7 @@ parser.add_argument('--ld_c', help='Mnemonic to use for \'ldh [c], a\' type inst
 parser.add_argument('--overwrite', help='Allow generating a disassembly into an already existing directory', action='store_true')
 parser.add_argument('--debug', help='Display debug output', action='store_true')
 parser.add_argument('--tiny', help='Emulate RGBLINK `-t` option (non-banked / "32k" ROMs)', action='store_true')
+parser.add_argument('--game_asm_includes', help='Includes that begin game.asm', default='hardware.inc')
 args = parser.parse_args()
 
 debug = args.debug
@@ -1369,6 +1371,7 @@ style = {
     'hli': args.hli,
     'ldh_a8': args.ldh_a8,
     'ld_c': args.ld_c,
+    'game_asm_includes': args.game_asm_includes.split(',')
 }
 instructions = apply_style_to_instructions(style, instructions)
 charMap = []
