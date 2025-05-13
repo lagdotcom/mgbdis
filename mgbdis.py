@@ -1347,7 +1347,8 @@ class ROM:
         f = open(path, 'w')
 
         if len(self.image_dependencies):
-            f.write('IMAGE_DEPS = {}\n\n'.format(' '.join(self.image_dependencies)))
+            f.write('IMAGE_DEPS = {}\n'.format(' '.join(self.image_dependencies)))
+        f.write('INCLUDE_DEPS = {}\n\n'.format(' '.join(self.style['game_asm_includes'])))
 
         f.write('all: game.{}\n\n'.format(rom_extension))
 
@@ -1358,9 +1359,9 @@ class ROM:
         f.write('\trgbgfx -d 1 -o $@ $<\n\n')
 
         if len(self.image_dependencies):
-            f.write('game.o: game.asm bank_*.asm $(IMAGE_DEPS)\n')
+            f.write('game.o: game.asm bank_*.asm $(IMAGE_DEPS) $(INCLUDE_DEPS)\n')
         else:
-            f.write('game.o: game.asm bank_*.asm\n')
+            f.write('game.o: game.asm bank_*.asm $(INCLUDE_DEPS)\n')
 
         f.write('\trgbasm -o game.o game.asm\n\n')
 
