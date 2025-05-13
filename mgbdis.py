@@ -480,7 +480,11 @@ class Bank:
             if operand == 'a16':
                 length += 2
                 value = rom.data[pc + 1] + rom.data[pc + 2] * 256
-                operand_values.append(hex_word(value))
+                label = self.get_label_for_instruction_operand(pc_mem_address, value)
+                if label:
+                    operand_values.append(label)
+                else:
+                    operand_values.append(hex_word(value))
 
             elif operand == '[a16]':
                 length += 2
