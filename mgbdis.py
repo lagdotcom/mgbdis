@@ -140,15 +140,17 @@ ldh_a8_formatters = {
     'ldh_ffa8': lambda value: '[{0}]'.format(hex_word(0xff00 + value)),
 }
 special_characters = {
-    0 : '\0', #null
-    92 : '\\\\',
-    34 : '\\"',
-    123 : '\\{',
-    125 : '\\}'
+    0: '\0',  # null
+    92: '\\\\',
+    34: '\\"',
+    123: '\\{',
+    125: '\\}'
 }
+
 
 def warn(*args, **kwargs):
     print("WARNING: ", *args, **kwargs)
+
 
 def abort(message):
     print("FATAL: ", message)
@@ -168,11 +170,13 @@ def hex_byte(value):
     else:
         return f'${value:02x}'
 
+
 def format_hex(hex_string):
     if style['uppercase_hex']:
         return hex_string.upper()
     else:
         return hex_string.lower()
+
 
 def bytes_to_string(data):
     return ' '.join(hex_byte(byte) for byte in data)
@@ -190,6 +194,7 @@ def to_signed(value):
         return (256 - value) * -1
     return value
 
+
 def apply_style_to_instructions(style, instructions):
     # set undefined opcodes to use db/DB
     for opcode, instruction in instructions.items():
@@ -206,6 +211,7 @@ def apply_style_to_instructions(style, instructions):
 
 def fix_slashes(s):
     return s.replace('\\', '\\\\')
+
 
 class Bank:
 
@@ -245,11 +251,9 @@ class Bank:
             'image': self.process_image_in_range
         })
 
-
     def add_target_address(self, instruction_name, address):
         if address not in self.target_addresses[instruction_name]:
             self.target_addresses[instruction_name].add(address)
-
 
     def resolve_blocks(self):
         blocks = self.symbols.get_blocks(self.bank_number, self.size)
@@ -302,7 +306,8 @@ class Bank:
 
     def get_hints_by_address(self, value):
         hints = self.symbols.get_hints(self.bank_number)
-        if value in hints: return hints[value]
+        if value in hints:
+            return hints[value]
 
     def get_label_for_instruction_operand(self, address, value):
         # an operand value lower than $100 is more probably an actual value than an address:
@@ -314,7 +319,8 @@ class Bank:
         if hints:
             if 'bank' in hints:
                 label = self.symbols.get_label(hints['bank'], value)
-                if label: return label
+                if label:
+                    return label
 
         return self.get_label(value)
 
@@ -341,7 +347,6 @@ class Bank:
 
         return None
 
-
     def get_labels_for_non_code_address(self, address):
         labels = []
 
@@ -354,7 +359,6 @@ class Bank:
                 labels.append(label + '::')
 
         return labels
-
 
     def get_labels_for_address(self, address):
         labels = []
@@ -375,18 +379,15 @@ class Bank:
 
         return labels
 
-
     def format_label(self, instruction_name, address):
         formatted_bank = format_hex(f'{self.bank_number:03x}')
         formatted_address = format_hex(f'{address:04x}')
         return f'{self.instruction_label_prefixes[instruction_name]}_{formatted_bank}_{formatted_address}'
 
-
     def format_image_label(self, address):
         return 'image_{0:03x}_{1:04x}'.format(self.bank_number, address)
 
-
-    def format_instruction(self, instruction_name, operands, address = None, source_bytes = None):
+    def format_instruction(self, instruction_name, operands, address=None, source_bytes=None):
         instruction = f"{self.style['indentation']}{instruction_name:<{self.style['operand_padding']}} {', '.join(operands)}"
 
         if self.style['print_hex'] and address is not None and source_bytes is not None:
@@ -394,26 +395,21 @@ class Bank:
         else:
             return instruction.rstrip()
 
-
-    def format_data(self, data, instruction = 'db'):
+    def format_data(self, data, instruction='db'):
         return self.format_instruction(self.style[instruction], data)
-
 
     def append_output(self, text):
         self.output.append(text)
-
 
     def append_labels_to_output(self, labels):
         self.append_empty_line_if_none_already()
         self.append_output('\n'.join(labels))
 
-
     def append_empty_line_if_none_already(self):
         if len(self.output) > 0 and self.output[len(self.output) - 1] != '':
             self.append_output('')
 
-
-    def disassemble(self, rom, first_pass = False):
+    def disassemble(self, rom, first_pass=False):
         self.first_pass = first_pass
         self.current_map_index = None
         if first_pass:
@@ -437,15 +433,13 @@ class Bank:
             self.append_empty_line_if_none_already()
         return '\n'.join(self.output)
 
-
-    def process_code_in_range(self, rom, start_address, end_address, arguments = None):
+    def process_code_in_range(self, rom, start_address, end_address, arguments=None):
         if not self.first_pass and debug:
             print('Disassembling code in range: {} - {}'.format(hex_word(start_address), hex_word(end_address)))
 
         self.pc = start_address
         while self.pc < end_address:
             instruction = self.disassemble_at_pc(rom, end_address)
-
 
     def disassemble_at_pc(self, rom, end_address):
         pc = self.pc
@@ -478,7 +472,6 @@ class Bank:
                 # otherwise handle it as a data byte
                 instruction_name = self.style['db']
                 operands = [hex_byte(opcode)]
-
 
         # figure out the operand values for each operand
         for operand in operands:
@@ -553,7 +546,7 @@ class Bank:
 
                 # is the jump target is in this bank?
                 if (rom_address >= self.rom_base_address + self.memory_base_address and
-                    rom_address < self.rom_base_address + self.memory_base_address + self.size):
+                        rom_address < self.rom_base_address + self.memory_base_address + self.size):
                     # yep!
                     pass
                 else:
@@ -586,7 +579,6 @@ class Bank:
             else:
                 operand_values.append(hex_byte(operand))
 
-
             if instruction_name in ['jr', 'jp', 'call'] and value is not None and value < 0x8000:
                 mem_address = rom_address_to_mem_address(value)
 
@@ -605,7 +597,6 @@ class Bank:
                         # remove the address from operand values and use the label instead
                         operand_values.pop()
                         operand_values.append(label)
-
 
         # check the instruction is not spanning 2 banks
         if pc + length - 1 >= end_address:
@@ -643,7 +634,7 @@ class Bank:
                     self.append_output('')
                     self.append_output('')
 
-    def process_bin_in_range(self, rom, start_address, end_address, arguments = None):
+    def process_bin_in_range(self, rom, start_address, end_address, arguments=None):
         if not self.first_pass and debug:
             print('Outputting bin in range: {} - {}'.format(hex_word(start_address), hex_word(end_address)))
 
@@ -657,7 +648,7 @@ class Bank:
 
         self.append_output(self.format_instruction('INCBIN', ['\"%s\"' % fix_slashes(arguments)]))
 
-    def process_data_in_range(self, rom, start_address, end_address, arguments = None):
+    def process_data_in_range(self, rom, start_address, end_address, arguments=None):
         if not self.first_pass and debug:
             print('Outputting data in range: {} - {}'.format(hex_word(start_address), hex_word(end_address)))
 
@@ -696,9 +687,12 @@ class Bank:
                 else:
                     label = self.symbols.get_label(use_bank, value)
 
-                if label: values.append(label)
-                else: values.append(hex_word(value))
-            else: values.append(hex_byte(rom.data[address]))
+                if label:
+                    values.append(label)
+                else:
+                    values.append(hex_word(value))
+            else:
+                values.append(hex_byte(rom.data[address]))
 
             # output max of 16 bytes per line, and ensure any remaining values are output
             if len(values) == 16 or (address == end_address - size and len(values)):
@@ -706,14 +700,14 @@ class Bank:
                 values = []
 
     def get_character_map_index(self, arguments):
-        #no args
+        # no args
         if arguments == None:
             return -1
         name = None
         for argument in arguments.split(":"):
             key_value = argument.split("=", 1)
             if len(key_value) == 2:
-                key,name = key_value
+                key, name = key_value
             else:
                 key = key_value[0]
                 name = "0"
@@ -721,20 +715,20 @@ class Bank:
                 break
         else:
             return -1
-        #map name
+        # map name
         for m in range(len(rom.character_maps)):
             if rom.character_maps[m].name == name:
                 return m
-        #index
+        # index
         if name.isnumeric():
             map_index = int(name)
             if map_index >= len(rom.character_maps):
                 abort("Character map index {} out of range".format(name))
             return map_index
-        #no charmap found
+        # no charmap found
         abort("Character map '{}' does not exist.".format(name))
 
-    def process_text_in_range(self, rom, start_address, end_address, arguments = None):
+    def process_text_in_range(self, rom, start_address, end_address, arguments=None):
         if not self.first_pass and debug:
             print('Outputting text in range: {} - {}'.format(hex_word(start_address), hex_word(end_address)))
         # process arguments
@@ -751,7 +745,7 @@ class Bank:
         values = []
         text = ''
         address = start_address - 1
-        while(address < end_address-1):
+        while (address < end_address-1):
             address += 1
             mem_address = rom_address_to_mem_address(address)
 
@@ -772,8 +766,8 @@ class Bank:
             if custom_map:
                 key = None
                 character_map = rom.character_maps[self.current_map_index]
-                #check for multi length character mapping
-                for length in range(character_map.max_length, 1,-1):
+                # check for multi length character mapping
+                for length in range(character_map.max_length, 1, -1):
                     if address + length-1 > end_address:
                         continue
                     to_check = tuple(list(rom.data[address: address+length]))
@@ -811,7 +805,8 @@ class Bank:
 
         if len(values):
             self.append_output(self.format_data(values))
-    def process_image_in_range(self, rom, start_address, end_address, arguments = None):
+
+    def process_image_in_range(self, rom, start_address, end_address, arguments=None):
         if not self.first_pass and debug:
             print('Outputting image in range: {} - {}'.format(hex_word(start_address), hex_word(end_address)))
 
@@ -830,8 +825,6 @@ class Bank:
         self.append_output(self.format_instruction('INCBIN', ['\"' + fix_slashes(full_filename) + '\"']))
 
 
-
-
 class Symbols:
     def __init__(self, bank_size):
         self.symbols = {}
@@ -848,7 +841,6 @@ class Symbols:
                 self.add_symbol_definition(line)
 
         f.close()
-
 
     def add_symbol_definition(self, symbol_def):
         try:
@@ -907,7 +899,7 @@ class Symbols:
                 # add the label
                 self.add_label(bank, address, label)
 
-    def add_block(self, bank, address, block_type, length, arguments = None):
+    def add_block(self, bank, address, block_type, length, arguments=None):
         memory_base_address = 0x0000 if bank == 0 else 0x4000
 
         if address >= memory_base_address:
@@ -956,6 +948,7 @@ class Symbols:
 
         return self.hints[bank]
 
+
 class ROM:
 
     def __init__(self, rom_path, style, tiny, character_maps):
@@ -998,14 +991,13 @@ class ROM:
             self.num_banks = self.rom_size // 0x4000
             if self.rom_size % 0x4000 != 0:
                 warn(f"ROM size (${self.rom_size:04x}) is not a multiple of $4000!")
-                self.num_banks += 1 # Count that incomplete bank
+                self.num_banks += 1  # Count that incomplete bank
             if tiny:
                 if self.num_banks > 2:
                     abort(f"ROM is ${self.rom_size:04x} bytes large, tiny ROMs can only be $8000 at most")
                 self.num_banks = 1
         else:
             abort('"{}" not found'.format(self.rom_path))
-
 
     def split_instructions(self):
         # split the instructions and operands
@@ -1030,7 +1022,6 @@ class ROM:
             else:
                 self.cb_instruction_operands[cb_opcode] = []
 
-
     def load_symbols(self):
         symbols = Symbols(0x8000 if self.tiny else 0x4000)
 
@@ -1048,10 +1039,8 @@ class ROM:
 
         return symbols
 
-
     def supports_gbc(self):
         return ((self.data[0x143] & 0x80) == 0x80)
-
 
     def disassemble(self, output_dir):
 
@@ -1065,7 +1054,6 @@ class ROM:
                 abort('Output path "{}" already exists and is not a directory!'.format(self.output_directory))
         else:
             os.makedirs(self.output_directory)
-
 
         print('Generating labels...')
         self.generate_labels()
@@ -1086,11 +1074,9 @@ class ROM:
 
         print('\nDisassembly generated in "{}"'.format(self.output_directory))
 
-
     def generate_labels(self):
         for bank in range(0, self.num_banks):
             self.banks[bank].disassemble(rom, True)
-
 
     def write_bank_asm(self, bank):
         if not debug:
@@ -1105,25 +1091,26 @@ class ROM:
 
         f.close()
 
-
     def write_header(self, f):
         f.write('; Disassembly of "{}"\n'.format(os.path.basename(self.rom_path)))
         f.write('; This file was created with:\n')
         f.write('; {}\n'.format(app_name))
         f.write('; https://github.com/mattcurrie/mgbdis\n\n')
 
-
     def copy_hardware_inc(self):
         src = os.path.join(self.script_dir, 'hardware.inc')
         dest = os.path.join(self.output_directory, 'hardware.inc')
         copyfile(src, dest)
+
     def get_character_map_paths(self):
         return list(set([p.path for p in self.character_maps]))
+
     def copy_charater_map(self):
         paths = self.get_character_map_paths()
         for src in paths:
-            dest =  os.path.join(self.output_directory, os.path.basename(src))
+            dest = os.path.join(self.output_directory, os.path.basename(src))
             copyfile(src, dest)
+
     def write_game_asm(self):
         path = os.path.join(self.output_directory, 'game.asm')
         f = open(path, 'w', encoding="utf-8")
@@ -1132,7 +1119,7 @@ class ROM:
 
         f.write('INCLUDE "hardware.inc"')
         character_maps = self.get_character_map_paths()
-        if(len(character_maps) > 0):
+        if (len(character_maps) > 0):
             for map in character_maps:
                 f.write('\nINCLUDE "{}"'.format(os.path.basename(map)))
             f.write('\nSETCHARMAP main')
@@ -1233,7 +1220,6 @@ class ROM:
 
         return result
 
-
     def coordinate_to_tile_offset(self, x, y, width, bpp):
         bytes_per_tile_row = bpp  # 8 pixels at 1 or 2 bits per pixel
         bytes_per_tile = bytes_per_tile_row * 8  # 8 rows per tile
@@ -1245,9 +1231,8 @@ class ROM:
 
         return (tile_y * tiles_per_row * bytes_per_tile) + (tile_x * bytes_per_tile) + (row_of_tile * bytes_per_tile_row)
 
-
     def convert_palette_to_rgb(self, palette, bpp):
-        col0 = 255 - (((palette & 0x03)     ) << 6)
+        col0 = 255 - (((palette & 0x03)) << 6)
         col1 = 255 - (((palette & 0x0C) >> 2) << 6)
         col2 = 255 - (((palette & 0x30) >> 4) << 6)
         col3 = 255 - (((palette & 0xC0) >> 6) << 6)
@@ -1263,7 +1248,6 @@ class ROM:
                 (col0, col0, col0),
                 (col3, col3, col3)
             ]
-
 
     def write_makefile(self):
         rom_extension = 'gb'
@@ -1305,19 +1289,22 @@ class ROM:
 
         f.close()
 
+
 class CharacterMap():
     def __init__(self, name, path):
         self.name = name
         self.path = path
         self.character_map = {}
         self.max_length = 1
+
     def read_number(number_string):
         number_string = number_string.strip()
         if number_string.startswith("$"):
             return int(number_string[1:].replace("_", ""), 16)
         else:
             return int(number_string)
-    def create_character_maps(file_path :str):
+
+    def create_character_maps(file_path: str):
         lines = []
         with open(file_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
@@ -1336,10 +1323,11 @@ class CharacterMap():
                 new_map = CharacterMap(line[mapSearch.end():].strip(), file_path)
             else:
                 mapSearch = re.search('[ \t]*charmap[ \t]*"((?:[^"]|\\")+)",[ \t]*(.+)', line, re.IGNORECASE)
-                if(mapSearch == None): continue
+                if (mapSearch == None):
+                    continue
                 mapping = mapSearch[1].rsplit('"', 1)[0]
                 ints = mapSearch[2].strip().split(",")
-                if(len(ints) == 1):
+                if (len(ints) == 1):
                     key = CharacterMap.read_number(ints[0])
                 else:
                     key = tuple(CharacterMap.read_number(i) for i in ints)
@@ -1348,6 +1336,7 @@ class CharacterMap():
                 new_map.character_map[key] = mapping
         maps.append(new_map)
         return maps
+
 
 app_name = 'mgbdis v{version} - Game Boy ROM disassembler by {author}.'.format(version=__version__, author=__author__)
 parser = argparse.ArgumentParser(description=app_name)
