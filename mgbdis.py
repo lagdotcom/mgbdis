@@ -1282,7 +1282,7 @@ class ROM:
         else:
             f.write('\trgblink -n game.sym -m game.map -o $@ $<\n')
         f.write('\trgbfix -v -p 255 $@\n\n')
-        f.write('\t@if which md5sum &>/dev/null; then md5sum $@; else md5 $@; fi\n\n')
+        f.write('\t%s\n\n' % (self.style['makefile_md5']))
 
         f.write('clean:\n')
         f.write('\trm -f game.o game.{} game.sym game.map\n'.format(rom_extension))
@@ -1357,6 +1357,7 @@ parser.add_argument('--overwrite', help='Allow generating a disassembly into an 
 parser.add_argument('--debug', help='Display debug output', action='store_true')
 parser.add_argument('--tiny', help='Emulate RGBLINK `-t` option (non-banked / "32k" ROMs)', action='store_true')
 parser.add_argument('--game_asm_includes', help='Includes that begin game.asm', default='hardware.inc')
+parser.add_argument('--makefile_md5', help='MD5 command in makefile', default='@if which md5sum &>/dev/null; then md5sum $@; else md5 $@; fi')
 args = parser.parse_args()
 
 debug = args.debug
@@ -1371,7 +1372,8 @@ style = {
     'hli': args.hli,
     'ldh_a8': args.ldh_a8,
     'ld_c': args.ld_c,
-    'game_asm_includes': args.game_asm_includes.split(',')
+    'game_asm_includes': args.game_asm_includes.split(','),
+    'makefile_md5': args.makefile_md5,
 }
 instructions = apply_style_to_instructions(style, instructions)
 charMap = []
