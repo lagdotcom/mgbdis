@@ -1,4 +1,5 @@
 IMAGE_DEPS = gfx/OldSkoolOutlineThick.2bpp
+INCLUDE_DEPS = hardware.inc
 
 all: game.gb
 
@@ -8,7 +9,7 @@ all: game.gb
 %.1bpp: %.png
 	rgbgfx -d 1 -o $@ $<
 
-game.o: game.asm bank_*.asm $(IMAGE_DEPS)
+game.o: game.asm bank_*.asm $(IMAGE_DEPS) $(INCLUDE_DEPS)
 	rgbasm -o game.o game.asm
 
 game.gb: game.o
