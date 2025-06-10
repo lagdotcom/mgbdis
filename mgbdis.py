@@ -236,6 +236,13 @@ def abort(message):
     os._exit(1)
 
 
+def hex_long(value):
+    if style['uppercase_hex']:
+        return f'${value:08X}'
+    else:
+        return f'${value:08x}'
+
+
 def hex_word(value):
     if style['uppercase_hex']:
         return f'${value:04X}'
@@ -743,7 +750,10 @@ class Bank:
         # process arguments
         if arguments is not None:
             for argument in arguments.split(','):
-                if argument == 'w':
+                if argument == 'l':
+                    size = 4
+                    instruction = 'dl'
+                elif argument == 'w':
                     size = 2
                     instruction = 'dw'
                 elif argument[0] == 'b':
@@ -774,6 +784,9 @@ class Bank:
                     values.append(label)
                 else:
                     values.append(hex_word(value))
+            elif size == 4:
+                value = rom.data[address] + (rom.data[address+1] << 8) + (rom.data[address+2] << 16) + (rom.data[address+3] << 24)
+                values.append(hex_long(value))
             else:
                 value = rom.data[address]
                 alias = hex_byte(value)
@@ -1458,6 +1471,7 @@ style = {
     'operand_padding': 4 if args.align_operands else 0,
     'db': 'DB' if args.uppercase_db else 'db',
     'dw': 'DW' if args.uppercase_db else 'dw',
+    'dl': 'DL' if args.uppercase_db else 'dl',
     'hli': args.hli,
     'ldh_a8': args.ldh_a8,
     'ld_c': args.ld_c,
